@@ -1,7 +1,6 @@
 
 
 'use client';
-
 import * as React from 'react';
 import type { WindowItem, WindowType } from '@/lib/types';
 import { WhiteboardCanvas } from '@/components/whiteboard/whiteboard-canvas';
@@ -9,15 +8,12 @@ import { Sidebar } from '@/components/whiteboard/sidebar';
 import { TopBar } from '@/components/whiteboard/top-bar';
 import { FloatingToolbar } from '@/components/whiteboard/floating-toolbar';
 import { BottomPanel } from '@/components/whiteboard/bottom-panel';
-
-import { Button } from '@/components/ui/button';
-import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useAuth } from '@/contexts/auth-context';
 import { useSelection } from '@/hooks/use-selection';
 import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connections';
 import { useToast } from '@/hooks/use-toast';
-
+import { supabase } from '@/lib/supabase-client';
 export default function WhiteboardPage() {
   const { user, signOut } = useAuth();
   const [items, setItems] = React.useState<WindowItem[]>([]);
@@ -28,19 +24,40 @@ export default function WhiteboardPage() {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [clipboard, setClipboard] = React.useState<WindowItem[]>([]);
   const [showGrid, setShowGrid] = React.useState(true);
-  
-  // Enhanced functionality hooks
   const selection = useSelection();
   const history = useHistory(items, setItems);
   const connections = useConnections(items);
   const { toast } = useToast();
-  
-
-  
   const lastGridPosition = React.useRef({ x: 0, y: 0 });
   const GRID_GUTTER = 20;
   const WINDOW_WIDTH = 480;
-
+  const user_id = user?.id;
+  const handleSave = async () => {
+    if (!user_id) return;
+    const { error, data } = await supabase.from('Whiteboarddata').insert({
+      items,
+      user_id
+    }).single();
+    if (!error) {
+      toast({ description: 'Items saved successfully!' });
+    } else {
+      toast({ description: 'Error occurred while saving', variant: 'destructive' });
+    };
+  };
+  React.useEffect(() => {
+      if (!user_id) return;
+      const fetchItems = async () => {
+      const { error, data } = await supabase.from('Whiteboarddata').select('items').eq('user_id', user_id);
+      if (!error && Array.isArray(data)) {
+        const allItems: WindowItem[] = data.flatMap((row: any) => Array.isArray(row.items) ? row.items : []);
+        setItems(allItems);
+       
+      } else {
+        setItems([]);
+      }
+    };
+    fetchItems();
+  }, [user_id]);
   const handleAddItem = (type: WindowType, content?: string | string[]) => {
     let newZIndex = activeZIndex;
     
@@ -153,19 +170,20 @@ export default function WhiteboardPage() {
     );
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = async(id: string) => {
+    console.log(id)
     const itemToDelete = items.find(item => item.id === id);
     if (itemToDelete && !history.isUndoRedoing) {
       history.addToHistory({
         type: 'delete',
         items: [itemToDelete],
       });
+      await supabase.from('Whiteboarddata').delete().eq('id', id).single();
     }
-    
     setItems((prev) => prev.filter((item) => item.id !== id));
     selection.selectItems([]); // Clear selection when deleting
+    toast({ description: 'Deleting items success!' });``
   };
-
   const handleFocusItem = (id: string) => {
     const item = items.find(i => i.id === id);
     if (item && item.zIndex < activeZIndex) {
@@ -267,7 +285,7 @@ export default function WhiteboardPage() {
   };
 
   // Enhanced item management functions
-  const deleteSelectedItems = React.useCallback(() => {
+  const deleteSelectedItems = React.useCallback(async () => {
     const selectedItems = selection.getSelectedItems(items);
     if (selectedItems.length === 0) return;
 
@@ -276,14 +294,16 @@ export default function WhiteboardPage() {
         type: 'delete',
         items: selectedItems,
       });
+      // حذف من supabase إذا كان هناك id للصفوف
+      const ids = selectedItems.map(item => item.id);
+      if (ids.length > 0) {
+        await supabase.from('Whiteboarddata').delete().in('id', ids);
+      }
     }
 
     setItems(prev => prev.filter(item => !selection.isSelected(item.id)));
     selection.clearSelection();
-    
-    toast({
-      description: `Deleted ${selectedItems.length} item(s)`,
-    });
+    toast({ description: `تم حذف ${selectedItems.length} عنصر بنجاح!` });
   }, [items, selection, history, toast]);
 
   const duplicateSelectedItems = React.useCallback(() => {
@@ -574,24 +594,30 @@ export default function WhiteboardPage() {
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.type.toLowerCase().includes(searchQuery.toLowerCase())
+
     );
   }, [items, searchQuery]);
-  
+
   return (
-    <ProtectedRoute>
       <div className="relative h-dvh w-full overflow-hidden antialiased">
         {/* Top Bar */}
-        <TopBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSave={() => toast({ description: "Whiteboard saved!" })}
-          onExport={() => toast({ description: "Export feature coming soon!" })}
-          onShare={() => toast({ description: "Share feature coming soon!" })}
-          projectName="My Whiteboard"
-        />
+          <TopBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            items={items}
+            onSave={async () => {
+              handleSave();
+            }}
+            onExport={() => toast({ description: "Exporting Now!" })}
+            onShare={() => {
+              let shareUrl = window.location.href;
+              navigator.clipboard.writeText(shareUrl);
+              toast({ description: 'تم نسخ رابط المشاركة!' });
+            }}
+            projectName="My Whiteboard"
+          />
 
-        {/* Left Sidebar */}
-        <div className="pt-16"> {/* Account for top bar height */}
+          {/* Left Sidebar */}    <div className="pt-16"> {/* Account for top bar height */}
           <Sidebar onAddItem={handleAddItem} />
         </div>
 
@@ -604,7 +630,6 @@ export default function WhiteboardPage() {
             scale={scale}
             panOffset={panOffset}
             selection={selection}
-
             onUpdateItem={handleUpdateItem}
             onDeleteItem={handleDeleteItem}
             onFocusItem={handleFocusItem}
@@ -615,7 +640,6 @@ export default function WhiteboardPage() {
           />
         </div>
 
-        {/* Floating Toolbar */}
         <FloatingToolbar
           hasSelection={selection.selectedIds.size > 0}
           selectedItemsCount={selection.selectedIds.size}
@@ -646,6 +670,5 @@ export default function WhiteboardPage() {
           onToggleGrid={() => setShowGrid(!showGrid)}
         />
       </div>
-    </ProtectedRoute>
   );
 }

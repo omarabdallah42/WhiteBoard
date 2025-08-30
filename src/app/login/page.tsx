@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-import { Loader2, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { ProtectedRoute } from '@/components/auth/protected-route';
 
+import { Loader2, Mail, Lock, ArrowLeft } from 'lucide-react';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,21 +25,21 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Login failed',
-          description: error.message,
-        });
-      } else {
-        toast({
-          title: 'Welcome back!',
-          description: 'Successfully logged in to your whiteboard.',
-        });
-        router.push('/');
-      }
+const { error } = await signIn(email, password);
+
+if (error) {
+  toast({
+    variant: 'destructive',
+    title: 'Login failed',
+    description: error.message,
+  });
+} else {
+  toast({
+    title: 'Welcome back!',
+    description: 'Successfully logged in to your whiteboard.',
+  });
+  router.push('/');
+}
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -49,8 +50,9 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
   return (
+        <ProtectedRoute>
+
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <div className="w-full max-w-md">
         <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
@@ -119,5 +121,7 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+        </ProtectedRoute>
+
   );
 }

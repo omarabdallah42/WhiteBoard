@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -9,13 +8,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Dynamically import pdfjs-dist to avoid SSR issues
-const pdfjsPromise = import('pdfjs-dist/build/pdf');
+// pdfjs
+import * as pdfjsLib from 'pdfjs-dist';
+import 'pdfjs-dist/build/pdf.worker.entry';
+
+// mammoth للـ docx
 import mammoth from 'mammoth';
 
-pdfjsPromise.then(pdfjs => {
-    pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
-});
+// إعداد worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface DocumentDropzoneProps {
   item: WindowItem;
@@ -34,8 +35,8 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  // لما الكومبوننت يفتح، حاول تقرأ الداتا القديمة
   React.useEffect(() => {
-    // When the component loads, try to parse existing content
     if (item.content) {
       try {
         const docs = JSON.parse(item.content);
@@ -43,12 +44,12 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
           setParsedDocuments(docs);
         }
       } catch (e) {
-        // Not JSON, so it might be a plain text from the old version
         setParsedDocuments([{ name: 'document.txt', content: item.content }]);
       }
     }
-  }, []); // Only run once on mount
+  }, []);
 
+  // هنا هنparse الملفات
   const handleFileParse = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -59,20 +60,22 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
       try {
         let textContent = '';
         if (file.type === 'application/pdf') {
-          const pdfjs = await pdfjsPromise;
-          const pdf = await pdfjs.getDocument(await file.arrayBuffer()).promise;
+          // pdf
+          const pdf = await pdfjsLib.getDocument(await file.arrayBuffer()).promise;
           let content = '';
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const text = await page.getTextContent();
-            content += text.items.map(s => (s as any).str).join(' ');
+            content += text.items.map((s: any) => s.str).join(' ');
           }
           textContent = content;
-        } else if (file.type.includes('wordprocessingml')) { // .docx
+        } else if (file.type.includes('wordprocessingml')) {
+          // docx
           const arrayBuffer = await file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer });
           textContent = result.value;
-        } else if (file.type.startsWith('text/')) { // .txt
+        } else if (file.type.startsWith('text/')) {
+          // txt
           textContent = await file.text();
         } else {
           toast({
@@ -80,8 +83,9 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
             title: 'Unsupported File Type',
             description: `File type for ${file.name} is not supported.`,
           });
-          continue; // Skip unsupported files
+          continue;
         }
+
         newDocs.push({ name: file.name, content: textContent });
       } catch (error) {
         console.error('Error parsing file:', error);
@@ -92,13 +96,21 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
         });
       }
     }
-    
+
     const updatedDocs = [...parsedDocuments, ...newDocs];
     setParsedDocuments(updatedDocs);
-    onUpdate({ ...item, content: JSON.stringify(updatedDocs), title: updatedDocs.length > 1 ? `${updatedDocs.length} Documents` : updatedDocs[0]?.name || 'Document Upload' });
+    onUpdate({
+      ...item,
+      content: JSON.stringify(updatedDocs),
+      title:
+        updatedDocs.length > 1
+          ? `${updatedDocs.length} Documents`
+          : updatedDocs[0]?.name || 'Document Upload',
+    });
     setIsLoading(false);
   };
 
+  // drag and drop events
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -122,16 +134,17 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
     setIsDragging(false);
     handleFileParse(e.dataTransfer.files);
   };
-  
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-      handleFileParse(e.target.files);
-  }
+    handleFileParse(e.target.files);
+  };
 
   const handleClearDocuments = () => {
     setParsedDocuments([]);
     onUpdate({ ...item, content: '', title: 'Document Upload' });
   };
-  
+
+  // لو فيه ملفات مرفوعة بالفعل
   if (parsedDocuments.length > 0) {
     return (
       <div className="flex h-full flex-col">
@@ -143,16 +156,22 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
                   <FileText className="h-4 w-4 shrink-0" />
                   {doc.name}
                 </h4>
-                <p className="text-xs text-muted-foreground line-clamp-3">{doc.content}</p>
+                <p className="text-xs text-muted-foreground line-clamp-3">
+                  {doc.content}
+                </p>
               </div>
             ))}
           </div>
         </ScrollArea>
         <div className="border-t p-2 flex items-center justify-between">
-           <Button variant="outline" size="sm" onClick={handleClearDocuments}>
+          <Button variant="outline" size="sm" onClick={handleClearDocuments}>
             Clear Documents
           </Button>
-           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
             Add More...
           </Button>
           <input
@@ -168,6 +187,7 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
     );
   }
 
+  // حالة الرفع الفاضية
   return (
     <div
       className={cn(
@@ -199,7 +219,7 @@ export function DocumentDropzone({ item, onUpdate }: DocumentDropzoneProps) {
           <p className="text-xs text-muted-foreground">
             Supports: .txt, .pdf, .docx
           </p>
-           <Button 
+          <Button
             variant="outline"
             size="sm"
             className="mt-4"

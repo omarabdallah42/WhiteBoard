@@ -12,7 +12,7 @@ interface EnhancedConnectionLineProps {
   toItem: WindowItem;
   scale: number;
   onDelete?: (connectionId: string) => void;
-  isHighlighted?: boolean;
+  isHighlighted?: boolean; 
   obstacles?: WindowItem[];
 }
 

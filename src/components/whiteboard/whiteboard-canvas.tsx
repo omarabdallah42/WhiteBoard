@@ -48,15 +48,11 @@ export function WhiteboardCanvas({
   // Infinite canvas dimensions
   const CANVAS_SIZE = 50000; // Large but finite for performance
   const GRID_SIZE = 50;
-
-
   // Handle mouse wheel for zooming
   React.useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (!canvasRef.current) return;
-      
       e.preventDefault();
-      
       const rect = canvasRef.current.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;

@@ -10,7 +10,7 @@ import { AiChatWindow } from './ai-chat-window';
 import { cn } from '@/lib/utils';
 import { TiktokEmbed } from './tiktok-embed';
 import { DocumentDropzone } from './document-dropzone';
-import { ImageDropzone } from './image-dropzone';
+import { ImageDropzone } from './image-dropzone'; 
 
 interface WindowFrameProps {
   item: WindowItem;
@@ -247,4 +247,4 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
       <ConnectionHandle side="right" />
     </div>
   );
-}
+};
